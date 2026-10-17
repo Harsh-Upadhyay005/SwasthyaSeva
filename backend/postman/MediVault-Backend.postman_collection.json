@@ -1,0 +1,2190 @@
+{
+  "info": {
+    "name": "MediVault Backend API",
+    "description": "Run this collection in order with Collection Runner. It auto-generates patient/doctor users, stores tokens, adds medicine, logs dose, and validates role access.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Health check returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01B Liveness Health (/health)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('/health returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('/health response shape is valid', function () {",
+              "  pm.expect(json.status).to.eql('ok');",
+              "  pm.expect(json).to.have.property('service');",
+              "  pm.expect(json).to.have.property('timestamp');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01C Readiness Health (/health/ready)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health/ready",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health",
+            "ready"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('/health/ready returns serviceable status code', function () {",
+              "  pm.expect([200, 503]).to.include(pm.response.code);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('/health/ready response shape is valid', function () {",
+              "  pm.expect(['ready','not_ready']).to.include(json.status);",
+              "  pm.expect(json).to.have.property('checks');",
+              "  pm.expect(json.checks).to.have.property('database');",
+              "  pm.expect(json).to.have.property('timestamp');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Register Patient",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = Date.now().toString() + Math.floor(Math.random() * 10000).toString();",
+              "pm.environment.set('patientEmail', `patient_${suffix}@example.com`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register patient returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('patientToken', json.token);",
+              "pm.environment.set('patientId', json.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Patient Runner\",\n  \"email\": \"{{patientEmail}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"patient\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "register"
+          ]
+        }
+      }
+    },
+    {
+      "name": "03 Register Doctor",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const suffix = Date.now().toString() + Math.floor(Math.random() * 10000).toString();",
+              "pm.environment.set('doctorEmail', `doctor_${suffix}@example.com`);",
+              "pm.environment.set('doctorHospitalId', `HOSP-${suffix}`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register doctor returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('doctorToken', json.token);",
+              "pm.environment.set('doctorId', json.user.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Doctor Runner\",\n  \"email\": \"{{doctorEmail}}\",\n  \"password\": \"Pass@123\",\n  \"role\": \"doctor\",\n  \"hospitalId\": \"{{doctorHospitalId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "register"
+          ]
+        }
+      }
+    },
+    {
+      "name": "04 Get Me (Patient)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "auth",
+            "me"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get me returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Patient Dashboard (Patient token)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/patient/dashboard",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "patient",
+            "dashboard"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Patient dashboard returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Patient dashboard summary shape is valid', function () {",
+              "  pm.expect(json).to.have.property('summary');",
+              "  pm.expect(json.summary).to.have.property('activeMedicines');",
+              "  pm.expect(json.summary).to.have.property('scheduledDosesToday');",
+              "  pm.expect(json.summary).to.have.property('unreadNotifications');",
+              "  pm.expect(json.summary).to.have.property('unreadNotificationsByType');",
+              "  pm.expect(json.summary).to.have.property('recentRecordsCount');",
+              "  pm.expect(Array.isArray(json.recentSymptoms)).to.be.true;",
+              "  pm.expect(Array.isArray(json.recentReports)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Doctor Dashboard (Patient token should fail)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/dashboard",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "dashboard"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Patient token blocked on doctor route (403)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Doctor Dashboard (Doctor token)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/dashboard",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "dashboard"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor dashboard returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Doctor dashboard summary shape is valid', function () {",
+              "  pm.expect(json).to.have.property('summary');",
+              "  pm.expect(json.summary).to.have.property('assignedPatients');",
+              "  pm.expect(json.summary).to.have.property('highUrgencyPatients');",
+              "  pm.expect(json.summary).to.have.property('missedDosesLast24h');",
+              "  pm.expect(json.summary).to.have.property('unreadNotificationsByType');",
+              "  pm.expect(json.summary).to.have.property('recentRecordsCount');",
+              "  pm.expect(Array.isArray(json.patients)).to.be.true;",
+              "  pm.expect(Array.isArray(json.recentSymptoms)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Add Medicine",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Paracetamol\",\n  \"dosage\": \"650mg\",\n  \"frequency\": \"daily\",\n  \"timeSlots\": [\"09:00\", \"21:00\"]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add medicine returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('medicineId', json.medicine._id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 List Medicines",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List medicines returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Log Dose",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"taken\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine/{{medicineId}}/log",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine",
+            "{{medicineId}}",
+            "log"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Log dose returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10B Due Doses",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine/due",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine",
+            "due"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Due doses returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Due doses shape is valid', function () {",
+              "  pm.expect(json).to.have.property('summary');",
+              "  pm.expect(json).to.have.property('dueDoses');",
+              "  pm.expect(Array.isArray(json.dueDoses)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10C Mark Dose Status",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"medicineId\": \"{{medicineId}}\",\n  \"status\": \"missed\",\n  \"scheduledTime\": \"2026-03-18T09:00:00.000Z\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine/mark",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine",
+            "mark"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Mark dose returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Adherence Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine/adherence",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine",
+            "adherence"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Adherence returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11B Weekly Adherence Trend",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine/adherence/weekly",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine",
+            "adherence",
+            "weekly"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Weekly adherence returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Weekly trend contains 7 days', function () {",
+              "  pm.expect(Array.isArray(json.trend)).to.be.true;",
+              "  pm.expect(json.trend.length).to.eql(7);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Medicine route blocked for doctor",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor token blocked on medicine route (403)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Symptom Check",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"symptoms\": \"fever, cough and sore throat since 2 days\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/symptom/check",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "symptom",
+            "check"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Symptom check returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Symptom response has expected shape', function () {",
+              "  pm.expect(json).to.have.property('result');",
+              "  pm.expect(json.result).to.have.property('id');",
+              "  pm.expect(json.result).to.have.property('aiConditions');",
+              "  pm.expect(Array.isArray(json.result.aiConditions)).to.be.true;",
+              "  pm.expect(json.result.aiConditions.length).to.be.greaterThan(0);",
+              "  pm.expect(json.result).to.have.property('urgency');",
+              "  pm.expect(['low','medium','high']).to.include(json.result.urgency);",
+              "});",
+              "pm.environment.set('symptomLogId', json.result.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13B Symptom Check (Red Flag)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"symptoms\": \"sudden chest pain with shortness of breath and dizziness\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/symptom/check",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "symptom",
+            "check"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Red-flag symptom check returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Red-flag response marks elevated urgency', function () {",
+              "  pm.expect(['medium','high']).to.include(json.result.urgency);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Symptom History",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/symptom/history",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "symptom",
+            "history"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Symptom history returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Symptom route blocked for doctor",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/symptom/history",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "symptom",
+            "history"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor token blocked on symptom route (403)', function () {",
+              "  pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15A Notifications Unread Count",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications/unread-count",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications",
+            "unread-count"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Notifications unread count returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Unread count response includes unreadByType map', function () {",
+              "  pm.expect(json).to.have.property('unreadCount');",
+              "  pm.expect(json).to.have.property('unreadByType');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15B List Notifications",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List notifications returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Notifications payload shape is valid', function () {",
+              "  pm.expect(Array.isArray(json.notifications)).to.be.true;",
+              "  pm.expect(json).to.have.property('pagination');",
+              "  pm.expect(json.pagination).to.have.property('total');",
+              "});",
+              "if (json.notifications.length > 0) {",
+              "  pm.environment.set('notificationId', json.notifications[0]._id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15C Mark Notification Read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications",
+            "{{notificationId}}",
+            "read"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const notificationId = pm.environment.get('notificationId');",
+              "if (!notificationId) {",
+              "  pm.test('Notification ID available for mark read', function () {",
+              "    pm.expect.fail('Run List Notifications after creating a missed dose or urgent symptom notification.');",
+              "  });",
+              "} else {",
+              "  pm.test('Mark notification read returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15D Mark All Notifications Read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications/read-all",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications",
+            "read-all"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Mark all notifications read returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Read-all payload shape is valid', function () {",
+              "  pm.expect(json).to.have.property('matchedCount');",
+              "  pm.expect(json).to.have.property('modifiedCount');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15E List Unread Notifications (Filtered)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications?isRead=false&limit=10&page=1",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications"
+          ],
+          "query": [
+            {
+              "key": "isRead",
+              "value": "false"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Filtered unread list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Filtered notifications include pagination', function () {",
+              "  pm.expect(Array.isArray(json.notifications)).to.be.true;",
+              "  pm.expect(json).to.have.property('pagination');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15F Delete Notification",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications",
+            "{{notificationId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const notificationId = pm.environment.get('notificationId');",
+              "if (!notificationId) {",
+              "  pm.test('Notification ID available for delete', function () {",
+              "    pm.expect.fail('Run List Notifications before delete.');",
+              "  });",
+              "} else {",
+              "  pm.test('Delete notification returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "  });",
+              "}",
+              "pm.environment.unset('notificationId');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Upload Report (Cloudinary)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "report",
+              "type": "file",
+              "src": "{{reportFilePath}}"
+            },
+            {
+              "key": "reportType",
+              "type": "text",
+              "value": "Blood Test"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/patient/reports",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "patient",
+            "reports"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Upload report returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('reportId', json.report._id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 List My Reports",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/patient/reports",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "patient",
+            "reports"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List reports returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 Delete Report",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/patient/reports/{{reportId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "patient",
+            "reports",
+            "{{reportId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete report returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 Generate My QR Payload (Patient)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/my-profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "my-profile"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Generate QR payload returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('patientQrToken', json.qrToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 Doctor Scan Patient QR",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"qrToken\": \"{{patientQrToken}}\",\n  \"context\": \"doctor-dashboard\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/scan",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "scan"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor scan QR returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 QR Audit Log (Patient)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/audit?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "audit"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('QR audit log returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 Generate Emergency QR (Patient)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/my-emergency-profile",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "my-emergency-profile"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Generate emergency QR returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.environment.set('emergencyQrToken', json.qrToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 Access Emergency Profile (Public)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/emergency/{{emergencyQrToken}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "emergency",
+            "{{emergencyQrToken}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Emergency profile access returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Emergency response includes reports', function () {",
+              "  pm.expect(Array.isArray(json.reports)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24 P0 Smoke: Assign Patient To Doctor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients/{{patientId}}/assign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients",
+            "{{patientId}}",
+            "assign"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Assign patient returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Assign response has patient payload', function () {",
+              "  pm.expect(json).to.have.property('patient');",
+              "  pm.expect(json.patient).to.have.property('assignedDoctorId');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 P0 Smoke: Doctor Patients List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor patients list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Doctor patients list shape is valid', function () {",
+              "  pm.expect(json).to.have.property('count');",
+              "  pm.expect(Array.isArray(json.patients)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26 P0 Smoke: Invalid Assign Patient Id",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients/123/assign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients",
+            "123",
+            "assign"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid patientId is rejected with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Validation error shape exists', function () {",
+              "  pm.expect(json.message).to.eql('Validation failed.');",
+              "  pm.expect(Array.isArray(json.errors)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27 P0 Smoke: Invalid Doctor Patients Limit",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients?limit=1000",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "1000"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid limit is rejected with 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 P0 Smoke: Invalid Medicine Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"dosage\": \"500mg\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/medicine",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "medicine"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid medicine payload returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 P0 Smoke: Invalid Symptom Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"symptoms\": \"ok\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/symptom/check",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "symptom",
+            "check"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid symptom payload returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "30 P0 Smoke: Invalid Notification Id",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/notifications/123/read",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "notifications",
+            "123",
+            "read"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid notification id returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "31 P0 Smoke: Invalid QR Scan Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"context\": \"doctor-dashboard\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/scan",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "scan"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid QR scan payload returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "32 P0 Smoke: Invalid Emergency QR Token",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/qr/emergency/short",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "qr",
+            "emergency",
+            "short"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid emergency QR token returns 400', function () {",
+              "  pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "33 P0 Smoke: Unassign Patient From Doctor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients/{{patientId}}/unassign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients",
+            "{{patientId}}",
+            "unassign"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unassign patient returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "34 Message Flow: Reassign Patient",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/doctor/patients/{{patientId}}/assign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "doctor",
+            "patients",
+            "{{patientId}}",
+            "assign"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Reassign patient returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "35 Message Flow: Doctor Sends Message",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{doctorToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recipientId\": \"{{patientId}}\",\n  \"body\": \"Hi, please remember to take your evening medicine.\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/messages/send",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "messages",
+            "send"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Doctor message send returns 201', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Message send payload contains conversationId', function () {",
+              "  pm.expect(json).to.have.property('conversationId');",
+              "  pm.expect(json).to.have.property('chatMessage');",
+              "});",
+              "pm.environment.set('conversationId', json.conversationId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "36 Message Flow: Patient Lists Conversations",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/messages/conversations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "messages",
+            "conversations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Patient conversation list returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Conversation list shape is valid', function () {",
+              "  pm.expect(Array.isArray(json.conversations)).to.be.true;",
+              "});",
+              "if (json.conversations.length > 0) {",
+              "  pm.environment.set('conversationId', json.conversations[0].id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "37 Message Flow: Patient Gets Conversation Messages",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/messages/conversations/{{conversationId}}/messages?limit=20&page=1",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "messages",
+            "conversations",
+            "{{conversationId}}",
+            "messages"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Conversation messages returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Conversation messages payload is valid', function () {",
+              "  pm.expect(json).to.have.property('conversationId');",
+              "  pm.expect(Array.isArray(json.messages)).to.be.true;",
+              "  pm.expect(json).to.have.property('pagination');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "38 Message Flow: Patient Marks Conversation Read",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{patientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/messages/conversations/{{conversationId}}/read",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "messages",
+            "conversations",
+            "{{conversationId}}",
+            "read"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Mark conversation read returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const json = pm.response.json();",
+              "pm.test('Mark read response has update counters', function () {",
+              "  pm.expect(json).to.have.property('matchedCount');",
+              "  pm.expect(json).to.have.property('modifiedCount');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": []
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": []
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    }
+  ]
+}
