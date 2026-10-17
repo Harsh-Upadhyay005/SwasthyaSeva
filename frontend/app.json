@@ -27,7 +27,8 @@
       "predictiveBackGestureEnabled": false,
       "usesCleartextTraffic": true,
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
       ],
       "package": "com.anonymous.mediVaultApp"
     },
@@ -66,6 +67,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dff2e109-d798-4d50-bf2d-d17415960f46"
+      }
     }
   }
 }
