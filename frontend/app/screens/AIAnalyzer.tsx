@@ -71,10 +71,11 @@ export default function AIAnalyzerScreen() {
   }, []);
 
   async function runAI(overrideInput?: string, fromVoice: boolean = false) {
-    const prompt = (overrideInput ?? input).trim();
+    const rawInput = typeof overrideInput === 'string' ? overrideInput : input;
+    const prompt = (rawInput || '').trim();
     if (!prompt) return;
 
-    if (overrideInput) {
+    if (typeof overrideInput === 'string' && overrideInput) {
       setInput(prompt);
     }
 
@@ -281,7 +282,7 @@ export default function AIAnalyzerScreen() {
                 <View style={styles.btnRow}>
                   <Button
                     label="Ask AI"
-                    onPress={runAI}
+                    onPress={() => runAI()}
                     loading={loading}
                     disabled={!input.trim()}
                     style={{ flex: 1 }}
